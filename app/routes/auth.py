@@ -50,5 +50,11 @@ def login(user: schemas.UserLogin, db:Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     token = create_token({"user_id" : db_user.id})
+    api_key = db.query(models.APIKey).filter(models.APIKey.user_id == db_user.id).first()
 
-    return {"access_token": token}
+    return {
+        "access_token": token,
+        "api_key" : api_key
+    }
+
+

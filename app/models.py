@@ -18,3 +18,15 @@ class APIKey(Base):
     key = Column(String, unique=True, index=True, nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Scan(Base):
+    __tablename__ = "scans"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id=Column(Integer, ForeignKey("users.id"))
+    input_data = Column(String)
+    result = Column(String)
+    confidence = Column(String)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
