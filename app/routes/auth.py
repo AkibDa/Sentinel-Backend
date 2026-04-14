@@ -4,6 +4,8 @@ from app.db import SessionLocal
 from app import models, schemas
 from app.utils import hash_password, verify_password, generate_api_key
 from app.auth import create_token
+from app.auth import get_current_user
+from app.utils import generate_api_key
 
 router = APIRouter()
 
@@ -58,3 +60,23 @@ def login(user: schemas.UserLogin, db:Session = Depends(get_db)):
     }
 
 
+@router.post("/regenerate-key")
+def regenerate_api_key(
+    user_id: int = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+
+    api_key = db.query(models.APIKey).filter(models.APIKey.user_id == user_id).first()
+
+    if not api_key:
+        raise HTTPException(status_code=404, detail="API key not found")
+    
+    new_key = generate_api_key()
+    api_key.key = new_key
+
+    db.commit()
+    
+    return{
+        "message" : "API key regenerated",
+        "api_key" : new_key
+    }
