@@ -29,7 +29,7 @@ def predict_image_from_url(url: str):
         img_array = np.expand_dims(img_array, axis=0)
         img_array = preprocess_input(img_array)
 
-        prediction_score = model.predict(img_array)[0][0]
+        prediction_score = float(model.predict(img_array)[0][0])
         
 
         if prediction_score >= 0.5:
@@ -43,9 +43,11 @@ def predict_image_from_url(url: str):
         raw = float(prediction_score)
 
         return {
-            "label": label,
-            "confidence": round(confidence, 2),
-            "raw": raw
+           "label": label,
+            "confidence": round(float(confidence), 2),
+            "raw_score": round(float(prediction_score), 4),
+            "real_probability": round(float(prediction_score * 100), 2),
+            "fake_probability": round(float((1 - prediction_score) * 100), 2)
         }
 
     except Exception as e:
