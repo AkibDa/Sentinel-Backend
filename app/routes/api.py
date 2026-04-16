@@ -1,5 +1,6 @@
 import os
 import uuid
+import shutil
 from fastapi import APIRouter, Header, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from app.db import SessionLocal
@@ -77,13 +78,16 @@ async def analyse_upload(
     if not key:
         raise HTTPException(status_code=401, detail="Invalid API key")
     
+    temp_path = f"temp_{uuid.uuid4()}.mp4"
+    
     try:
-        temp_path = f"temp_{uuid.uuid4()}.mp4"
+        with open(temp_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
 
-        with open(temp_path, "wb") as f:
-            f.write(await file.read())
+        prediction =  predict_video(temp_path)
 
-        prediction = predict_video(temp_path)
+        if "error" in prediction:
+            raise HTTPException(status_code=400, detail=prediction["error"])
 
         result = prediction["prediction"]
         confidence = str(prediction["confidence"])
@@ -107,6 +111,9 @@ async def analyse_upload(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
 
 
 @router.post("/analyse/image-url")
@@ -119,14 +126,19 @@ def analyse_image_url(
 
     if not key:
         raise HTTPException(status_code=401, detail="Invalid API key")
+    
+    temp_path = f"temp_{uuid.uuid4()}.mp4"
 
     try:
-        prediction = predict_image_from_url(request.input)
+        with open(temp_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        prediction = predict_video(temp_path)
 
         if "error" in prediction:
             raise HTTPException(status_code=400, detail=prediction["error"])
-
-        result = prediction["label"].lower()   
+        
+        result = prediction["prediction"]
         confidence = str(prediction["confidence"])
 
         scan = models.Scan(

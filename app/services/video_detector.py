@@ -12,9 +12,18 @@ model = tf.keras.models.load_model(MODEL_PATH)
 def extract_frames(video_path, max_frames=20):
     cap = cv2.VideoCapture(video_path)
     frames=[]
-    count=0
 
-    while cap.isOpened() and count < max_frames:
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    if total_frames == 0:
+        return np.array([])
+    
+    step = max(1, total_frames // max_frames)
+
+    count = 0
+    while cap.isOpened() and len(frames) < max_frames:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, count * step)
+        
         ret, frame = cap.read()
         if not ret:
             break
