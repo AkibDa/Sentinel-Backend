@@ -97,7 +97,8 @@ def analyse_url(
             "type": media_type,
             "original_url": request.input,
             "result": result,
-            "confidence": confidence
+            "confidence": confidence,
+            "raw_score": prediction.get("raw_score")
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -154,7 +155,8 @@ async def analyse_upload(
         return{
             "type": "media_type",
             "result": result,
-            "confidence": confidence
+            "confidence": confidence,
+            "raw_score": prediction.get("raw_score")
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
