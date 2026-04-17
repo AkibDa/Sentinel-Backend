@@ -6,6 +6,7 @@ from fastapi import APIRouter, Header, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from app.db import SessionLocal
 from app import models
+from typing import Optional
 from app.auth import get_current_user
 from app.schemas import AnalyseRequest
 from app.services.video_detector import predict_video
@@ -80,20 +81,24 @@ def analyse_url(
     media_type = request.type
 
     if "instagram.com" in target_url:
-        n8n_webhook = "http://localhost:5678/webhook-test/8b86b827-299b-4004-9242-4381cbcc3043"
+        n8n_webhook = "http://localhost:5678/webhook/8b86b827-299b-4004-9242-4381cbcc3043" 
+        
+        # Ask n8n to fetch the raw media URL
+        n8n_response = requests.post(n8n_webhook, json={"url": target_url})
+        
+        # Print the exact n8n response to your terminal for debugging!
+        if n8n_response.status_code != 200:
+            print(f"N8N ERROR: {n8n_response.status_code} - {n8n_response.text}")
+            raise HTTPException(status_code=400, detail=f"n8n failed: {n8n_response.text}")
+        
         try:
-            n8n_response = requests.post(n8n_webhook, json={"url": target_url})
-            if n8n_response.status_code != 200:
-                raise HTTPException(status_code=400, detail="n8n failed to process instagram url")
-            
             n8n_data = n8n_response.json()
             target_url = n8n_data.get("raw_url")
-
-            if not target_url:
-                raise HTTPException(status_code=400, detail="Could not extract media url from n8n response")
             
+            if not target_url:
+                raise HTTPException(status_code=400, detail="n8n succeeded but didn't return a 'raw_url'")
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"n8n Webhook Error: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to parse n8n response: {str(e)}")
         
     try:
         if media_type == "image":
@@ -182,6 +187,7 @@ async def analyse_upload(
         scan = models.Scan(
             user_id = key.user_id,
             input_data = file.filename,
+            media_type = media_type,
             result = result,
             confidence = confidence
         )
@@ -189,7 +195,7 @@ async def analyse_upload(
         db.commit()
 
         return{
-            "type": "video",
+            "type": "media_type",
             "result": result,
             "confidence": confidence
         }
