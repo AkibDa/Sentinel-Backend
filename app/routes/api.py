@@ -13,6 +13,9 @@ from app.services.video_detector import predict_video
 from app.services.downloader import download_file
 from app.image_model import predict_image_from_url, predict_image_from_file
 from app.services.ytdlp_service import download_media_ytdlp
+from app.services.ytdlp_service import download_media_ytdlp
+from app.services.image_scraper import get_raw_image_url
+
 
 
 router = APIRouter()
@@ -50,7 +53,7 @@ def analyse_url(
                 os.remove(temp_path)
 
         elif media_type == "image":
-            prediction = predict_image_from_url(target_url)
+            if any(domain in target_url for domain in ["instagram.com", "twitter.com", "reddit.com"])
 
             if "error" in prediction:
                 raise HTTPException(status_code=400, detail=prediction["error"])
