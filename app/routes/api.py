@@ -53,7 +53,13 @@ def analyse_url(
                 os.remove(temp_path)
 
         elif media_type == "image":
-            if any(domain in target_url for domain in ["instagram.com", "twitter.com", "reddit.com"])
+            if any(domain in target_url for domain in ["instagram.com", "twitter.com", "reddit.com","x.com"]):
+                raw_url = get_raw_image_url(target_url)
+        
+            else:
+                raw_url = target_url
+
+            prediction = predict_image_from_url(raw_url)
 
             if "error" in prediction:
                 raise HTTPException(status_code=400, detail=prediction["error"])
