@@ -1,31 +1,33 @@
 import yt_dlp
 import uuid
 import os
+import glob
 
 def download_media_ytdlp(url: str) -> str:
-    base_name = f"temp_{uuid.uuid4}"
-
+    """
+    Uses yt-dlp to download video.
+    """
+    base_name = f"temp_{uuid.uuid4()}"
+    
     ydl_opts = {
-        'outtmpl' : f'{base_name}.%(ext)s',
-        'format': 'bestvideo[ext=mp4]/best[ext=mp4]/best',
-
-        'quiet': True,
-        'no_warnings': True,
+        'outtmpl': f'{base_name}.%(ext)s',
+        'format': 'best', 
+        'noplaylist': True,
     }
+
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
+            # Using extract_info forces yt-dlp to throw a real Python exception if it fails
+            ydl.extract_info(url, download=True)
+        
+        # Use glob to find the exact file yt-dlp created (e.g., temp_123.mp4, temp_123.mkv)
+        downloaded_files = glob.glob(f"{base_name}.*")
+        
+        if not downloaded_files:
+            raise Exception("Download appeared to succeed, but the file was not saved to the disk.")
+            
+        return downloaded_files[0]
 
-        downloaded_file = None
-        for file in os.listdir('.'):
-            if file.startswith(base_name):
-                downloaded_file = file
-                break
-        
-        if not downloaded_file:
-            raise Exception("yt-dlp finished but the file could not be found")
-        
-        return downloaded_file
-    
     except Exception as e:
-        raise Exception(f"yt-dlp extraction failed: {str(e)}")
+        # This will now capture the EXACT reason Twitter/Reddit rejected the download
+        raise Exception(f"yt-dlp error: {str(e)}")
