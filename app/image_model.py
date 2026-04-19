@@ -6,7 +6,7 @@ from PIL import Image
 from tensorflow.keras.models import load_model
 from tensorflow.keras.applications.xception import preprocess_input
 
-# ✅ Load model once (VERY IMPORTANT)
+
 model = load_model("models/xception_deepfake_base.keras")
 
 
@@ -39,10 +39,10 @@ def predict_image_from_url(url: str):
         
 
         if prediction_score >= 0.5:
-            label = "Real"
+            label = "fake"
             confidence = float(prediction_score * 100)
         else:
-            label = "Fake"
+            label = "real"
             confidence = float((1.0 - prediction_score) * 100)
 
         print(f"Raw score: {prediction_score}")

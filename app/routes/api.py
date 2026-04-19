@@ -27,23 +27,17 @@ def get_db():
 @router.post("/analyse/url")
 def analyse_url(
     request: AnalyseRequest,
-    x_api_key: str = Header(...),
+    user_id: int = Depends(get_current_user), 
     db: Session = Depends(get_db)
 ):
-    key = db.query(models.APIKey).filter(models.APIKey.key == x_api_key).first()
-    if not key:
-        raise HTTPException(status_code=401, detail="Invalid API key")
-    
     target_url = request.input
     media_type = request.type
 
     if "instagram.com" in target_url:
         n8n_webhook = "http://localhost:5678/webhook/8b86b827-299b-4004-9242-4381cbcc3043" 
         
-        # Ask n8n to fetch the raw media URL
         n8n_response = requests.post(n8n_webhook, json={"url": target_url})
         
-        # Print the exact n8n response to your terminal for debugging!
         if n8n_response.status_code != 200:
             print(f"N8N ERROR: {n8n_response.status_code} - {n8n_response.text}")
             raise HTTPException(status_code=400, detail=f"n8n failed: {n8n_response.text}")
@@ -56,7 +50,7 @@ def analyse_url(
                 raise HTTPException(status_code=400, detail="n8n succeeded but didn't return a 'raw_url'")
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to parse n8n response: {str(e)}")
-        
+
     try:
         if media_type == "image":
             prediction = predict_image_from_url(target_url)
@@ -65,7 +59,6 @@ def analyse_url(
             
             result = prediction["label"].lower()
             confidence = str(prediction["confidence"])
-
 
         elif media_type == "video":
             temp_path = download_file(target_url)
@@ -82,13 +75,13 @@ def analyse_url(
 
         else:
             raise HTTPException(status_code=400, detail="Invalid media type specified. Use 'image' or 'video'. ")
-        
+       
         scan = models.Scan(
-            user_id = key.user_id,
+            user_id = user_id,  
             input_data = request.input,
-            media_type=media_type,
-            result=result,
-            confidence=confidence
+            media_type = media_type,
+            result = result,
+            confidence = confidence
         )
         db.add(scan)
         db.commit()
@@ -102,21 +95,14 @@ def analyse_url(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
 
 @router.post("/analyse/analyse_upload")
 async def analyse_upload(
     file: UploadFile = File(...),
-    x_api_key: str = Header(...),
+    user_id: int = Depends(get_current_user), 
     db: Session = Depends(get_db)
 ):
-    key = db.query(models.APIKey).filter(models.APIKey.key == x_api_key).first()
-
-    if not key:
-        raise HTTPException(status_code=401, detail="Invalid API key")
-    
     file_ext = ".mp4" if file.content_type.startswith("video") else ".jpg"
-
     temp_path = f"temp_{uuid.uuid4()}{file_ext}"
     
     try:
@@ -143,7 +129,7 @@ async def analyse_upload(
         confidence = str(prediction["confidence"])
 
         scan = models.Scan(
-            user_id = key.user_id,
+            user_id = user_id,
             input_data = file.filename,
             media_type = media_type,
             result = result,
@@ -153,7 +139,7 @@ async def analyse_upload(
         db.commit()
 
         return{
-            "type": "media_type",
+            "type": media_type,
             "result": result,
             "confidence": confidence,
             "raw_score": prediction.get("raw_score")
