@@ -1,4 +1,19 @@
-# .gitignore
+# Security & Secrets (Crucial)
 .env
-__pycache__/
 cookies.txt
+
+venv/
+env/
+
+__pycache__/
+*.py[cod]
+*$py.class
+
+
+temp_*
+*.mp4
+*.jpg
+*.png
+*.webm
+
+.vscode/

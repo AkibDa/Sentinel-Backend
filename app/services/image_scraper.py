@@ -4,7 +4,7 @@ def get_raw_image_url(social_url: str) -> str:
 
     try:
         result = subprocess.run(
-            ["gallery-dl", "-g",social_url],
+            ["gallery-dl","--cookies","cookies.txt", "-g",social_url],
             capture_output=True,
             text=True,
             check=True
