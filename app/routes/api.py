@@ -1,8 +1,7 @@
 import os
 import uuid
 import shutil
-import requests
-from fastapi import APIRouter, Header, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from app.db import SessionLocal
 from app import models
@@ -14,8 +13,6 @@ from app.image_model import predict_image_from_url, predict_image_from_file
 from app.services.ytdlp_service import download_media_ytdlp
 from app.services.image_scraper import get_raw_image_url
 
-
-
 router = APIRouter()
 
 def get_db():
@@ -25,7 +22,43 @@ def get_db():
     finally:
         db.close()
 
+
+def finalize_scan_response(db: Session, user_id: int, input_data: str, media_type: str, prediction: dict, is_url: bool = False):
+    """Handles DB saving and response formatting for both URL and File endpoints."""
     
+    if "label" in prediction:
+        result = prediction["label"].lower()
+    elif "prediction" in prediction:
+        result = prediction["prediction"].lower()
+    else:
+        result = "unknown"
+        
+    confidence = str(prediction["confidence"])
+
+    scan = models.Scan(
+        user_id=user_id,
+        input_data=input_data,
+        media_type=media_type,
+        result=result,
+        confidence=confidence
+    )
+    db.add(scan)
+    db.commit()
+
+    response = {
+        "type": media_type,
+        "result": result,
+        "confidence": confidence,
+        "raw_score": prediction.get("raw_score")
+    }
+    
+    if is_url:
+        response["original_url"] = input_data
+
+    return response
+
+
+
 @router.post("/analyse/url")
 def analyse_url(
     request: AnalyseRequest,
@@ -34,61 +67,35 @@ def analyse_url(
 ):
     target_url = request.input
     media_type = request.type
+    temp_path = None
 
     try:
         if media_type == "video":
             temp_path = download_media_ytdlp(target_url)
-
             prediction = predict_video(temp_path)
 
-            if "error" in prediction:
-                raise HTTPException(status_code=400, detail=prediction["error"])
-            
-            result = prediction["prediction"].lower()
-            confidence = str(prediction["confidence"])
-
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-
         elif media_type == "image":
-            if any(domain in target_url for domain in ["instagram.com", "twitter.com", "reddit.com","x.com"]):
+            if any(domain in target_url for domain in ["instagram.com", "twitter.com", "reddit.com", "x.com"]):
                 raw_url = get_raw_image_url(target_url)
-        
             else:
                 raw_url = target_url
 
             prediction = predict_image_from_url(raw_url)
 
-            if "error" in prediction:
-                raise HTTPException(status_code=400, detail=prediction["error"])
-       
-            result = prediction["label"].lower()
-            confidence = str(prediction["confidence"])
-
         else:
             raise HTTPException(status_code=400, detail="Invalid media type specified.")
         
-        scan = models.Scan(
-            user_id = user_id,  
-            input_data = request.input,
-            media_type = media_type,
-            result = result,
-            confidence = confidence
-        )
-        db.add(scan)
-        db.commit()
+        if "error" in prediction:
+            raise HTTPException(status_code=400, detail=prediction["error"])
 
-        return{
-            "type": media_type,
-            "original_url": request.input,
-            "result": result,
-            "confidence": confidence,
-            "raw_score": prediction.get("raw_score")
-        }
+        return finalize_scan_response(db, user_id, target_url, media_type, prediction, is_url=True)
+
     except Exception as e:
-        if 'temp_path' in locals() and os.path.exists(temp_path):
-            os.remove(temp_path)
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            os.remove(temp_path)
+
 
 @router.post("/analyse/analyse_upload")
 async def analyse_upload(
@@ -106,44 +113,24 @@ async def analyse_upload(
         if file.content_type.startswith("video/"):
             prediction = predict_video(temp_path)
             media_type = "video"
-            if "error" in prediction:
-                raise HTTPException(status_code=400, detail=prediction["error"])
-            result = prediction["prediction"].lower()
 
         elif file.content_type.startswith("image/"):
             prediction = predict_image_from_file(temp_path)
             media_type = "image"
-            if "error" in prediction:
-                raise HTTPException(status_code=400, detail=prediction["error"])
-            result = prediction["label"].lower()
 
         else:
             raise HTTPException(status_code=400, detail="Unsupported file type. Please upload an image or video.")
         
-        confidence = str(prediction["confidence"])
+        if "error" in prediction:
+            raise HTTPException(status_code=400, detail=prediction["error"])
 
-        scan = models.Scan(
-            user_id = user_id,
-            input_data = file.filename,
-            media_type = media_type,
-            result = result,
-            confidence = confidence
-        )
-        db.add(scan)
-        db.commit()
+        return finalize_scan_response(db, user_id, file.filename, media_type, prediction, is_url=False)
 
-        return{
-            "type": media_type,
-            "result": result,
-            "confidence": confidence,
-            "raw_score": prediction.get("raw_score")
-        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         if os.path.exists(temp_path):
             os.remove(temp_path)
-
 
 
 @router.get("/history")
