@@ -8,8 +8,11 @@ MODEL_PATH = os.path.join(BASE_DIR, "app", "video_detect", "best_tf_model.keras"
 
 model = tf.keras.models.load_model(MODEL_PATH)
 
-REAL_CLASS_INDEX = 1
-FAKE_CLASS_INDEX = 0
+# The notebook author consistently treated:
+#   0 = Real  (class_weights comment + classification_report target_names both confirm this)
+#   1 = Manipulated / Fake
+REAL_CLASS_INDEX = 0
+FAKE_CLASS_INDEX = 1
 
 
 def extract_frames(video_path: str, max_frames: int = 20) -> np.ndarray:
@@ -31,8 +34,10 @@ def extract_frames(video_path: str, max_frames: int = 20) -> np.ndarray:
             break
 
         frame = cv2.resize(frame, (224, 224))
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # cv2 loads BGR; model expects RGB
 
+        # FIX 1: Do NOT divide by 255. EfficientNetV2B0 has built-in normalization
+        # and was trained on raw [0, 255] float32 values (see prepare() in model.ipynb).
         frame = frame.astype(np.float32)
 
         frames.append(frame)
@@ -48,10 +53,16 @@ def predict_video(video_path: str) -> dict:
     if len(frames) == 0:
         return {"error": "No frames could be extracted from this video"}
 
-    preds = model.predict(frames, verbose=0)  
+    # FIX 2: Model outputs softmax over 2 classes per frame → shape (num_frames, 2)
+    # preds[:, 0] = probability of "manipulated" (fake)
+    # preds[:, 1] = probability of "real"
+    preds = model.predict(frames, verbose=0)  # shape: (num_frames, 2)
+
+    # Average the real-class probability across all sampled frames
     avg_real_prob = float(preds[:, REAL_CLASS_INDEX].mean())
     avg_fake_prob = float(preds[:, FAKE_CLASS_INDEX].mean())
 
+    # FIX 3: Use the real-class column for the label decision
     if avg_real_prob >= 0.5:
         label = "real"
         confidence = round(avg_real_prob * 100, 2)
@@ -62,7 +73,7 @@ def predict_video(video_path: str) -> dict:
     return {
         "prediction": label,
         "confidence": confidence,
-        "raw_score": round(avg_real_prob, 4),      
+        "raw_score": round(avg_real_prob, 4),       # real probability (higher = more likely real)
         "real_probability": round(avg_real_prob * 100, 2),
         "fake_probability": round(avg_fake_prob * 100, 2),
         "frames_analysed": len(frames)
