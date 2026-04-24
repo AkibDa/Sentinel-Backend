@@ -18,7 +18,6 @@ router = APIRouter()
 
 
 def finalize_scan_response(db: Session, user_id: int, input_data: str, media_type: str, prediction: dict, is_url: bool = False):
-    """Handles DB saving and response formatting for both URL and File endpoints."""
     
     if "label" in prediction:
         result = prediction["label"].lower()
@@ -105,8 +104,11 @@ async def analyse_upload(
     user_id: int = Depends(get_current_user), 
     db: Session = Depends(get_db)
 ):
-    file_ext = ".mp4" if file.content_type.startswith("video") else ".jpg"
-    temp_path = f"temp_{uuid.uuid4()}{file_ext}"
+    _, ext = os.path.splitext(file.filename)
+    if not ext:
+        ext = ".mp4" if file.content_type.startswith("video") else ".jpg"
+        
+    temp_path = f"temp_{uuid.uuid4()}{ext.lower()}"
     
     try:
         with open(temp_path, "wb") as buffer:
@@ -115,13 +117,11 @@ async def analyse_upload(
         if file.content_type.startswith("video/"):
             prediction = predict_video(temp_path)
             media_type = "video"
-
         elif file.content_type.startswith("image/"):
             prediction = predict_image_from_file(temp_path)
             media_type = "image"
-
         else:
-            raise HTTPException(status_code=400, detail="Unsupported file type. Please upload an image or video.")
+            raise HTTPException(status_code=400, detail="Unsupported file type.")
         
         if "error" in prediction:
             raise HTTPException(status_code=400, detail=prediction["error"])
