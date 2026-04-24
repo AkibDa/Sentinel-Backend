@@ -12,14 +12,10 @@ SECRET_KEY = os.getenv("SECRET_KEY", "supersecretkey")  # move to .env before de
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 
-# These two schemes register properly with Swagger UI:
-# - jwt_scheme     → adds the "Authorize" button with Bearer token input
-# - api_key_scheme → adds the "Authorize" button with x-api-key input
 jwt_scheme = HTTPBearer(auto_error=False)
 api_key_scheme = APIKeyHeader(name="x-api-key", auto_error=False)
 
 
-# --- DB Dependency ---
 
 def get_db():
     db = SessionLocal()
@@ -29,7 +25,6 @@ def get_db():
         db.close()
 
 
-# --- Token creation ---
 
 def create_token(data: dict) -> str:
     to_encode = data.copy()

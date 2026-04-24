@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.db import SessionLocal
 from app import models
 from typing import Optional
-from app.auth import get_current_user
+from app.auth import get_current_user, get_db
 from app.schemas import AnalyseRequest
 from app.services.video_detector import predict_video
 from app.image_model import predict_image_from_url, predict_image_from_file
@@ -15,12 +15,6 @@ from app.services.image_scraper import get_raw_image_url
 
 router = APIRouter()
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 def finalize_scan_response(db: Session, user_id: int, input_data: str, media_type: str, prediction: dict, is_url: bool = False):
