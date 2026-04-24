@@ -7,7 +7,7 @@ from tensorflow.keras.models import load_model
 from tensorflow.keras.applications.xception import preprocess_input  # FIX 3: Added missing import
 
 
-model = load_model("models/xception_deepfake_base.keras")
+model = load_model("app/models/image_detect/xception_deepfake_base.keras")
 
 
 def predict_image_from_url(url: str):

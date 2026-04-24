@@ -6,7 +6,7 @@ import os
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
 # Updated to match the new model filename from the notebook
-MODEL_PATH = os.path.join(BASE_DIR, "app", "video_detect", "finetuned_video_model.keras")
+MODEL_PATH = os.path.join(BASE_DIR, "app", "models", "video_detect", "finetuned_video_model.keras")
 
 model = tf.keras.models.load_model(MODEL_PATH)
 
