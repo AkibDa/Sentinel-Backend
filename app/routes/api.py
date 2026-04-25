@@ -94,8 +94,16 @@ def analyse_url(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        if temp_path and os.path.exists(temp_path):
-            os.remove(temp_path)
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except PermissionError:
+                import time
+                time.sleep(0.5)
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass 
 
 
 @router.post("/analyse/analyse_upload")
@@ -132,8 +140,15 @@ async def analyse_upload(
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         if os.path.exists(temp_path):
-            os.remove(temp_path)
-
+            try:
+                os.remove(temp_path)
+            except PermissionError:
+                import time
+                time.sleep(0.5)
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
 
 @router.get("/history")
 def get_history(
