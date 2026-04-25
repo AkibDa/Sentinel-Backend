@@ -4,7 +4,7 @@ import shutil
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from app.db import SessionLocal
-from app import models
+from app import tables
 from typing import Optional
 from app.auth import get_current_user, get_db
 from app.schemas import AnalyseRequest
@@ -28,7 +28,7 @@ def finalize_scan_response(db: Session, user_id: int, input_data: str, media_typ
         
     confidence = str(prediction["confidence"])
 
-    scan = models.Scan(
+    scan = tables.Scan(
         user_id=user_id,
         input_data=input_data,
         media_type=media_type,
@@ -141,11 +141,11 @@ def get_history(
     user_id: int = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    query = db.query(models.Scan).filter(models.Scan.user_id == user_id)
+    query = db.query(tables.Scan).filter(tables.Scan.user_id == user_id)
 
     if media_type:
-        query = query.filter(models.Scan.media_type == media_type.lower())
+        query = query.filter(tables.Scan.media_type == media_type.lower())
 
-    scans = query.order_by(models.Scan.created_at.desc()).all()
+    scans = query.order_by(tables.Scan.created_at.desc()).all()
 
     return scans

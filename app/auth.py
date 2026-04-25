@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 import os
 from app.db import SessionLocal
-from app import models
+from app import tables
 
 SECRET_KEY = os.getenv("SECRET_KEY", "supersecretkey")  # move to .env before deploying
 ALGORITHM = "HS256"
@@ -57,8 +57,8 @@ def get_current_user(
         return verify_jwt_and_get_user_id(credentials.credentials)
     
     if x_api_key:
-        api_key = db.query(models.APIKey).filter(
-            models.APIKey.key == x_api_key
+        api_key = db.query(tables.APIKey).filter(
+            tables.APIKey.key == x_api_key
         ).first()
         if not api_key:
             raise HTTPException(status_code=401, detail="Invalid API key")

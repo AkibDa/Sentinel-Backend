@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db import SessionLocal
-from app import models, schemas
+from app import schemas, tables
 from app.utils import hash_password, verify_password, generate_api_key
 from app.auth import create_token
 from app.auth import get_current_user
@@ -20,21 +20,21 @@ def get_db():
 
 @router.post("/register")
 def register(user: schemas.UserCreate, db:Session = Depends(get_db)):
-    existing_user = db.query(models.User).filter(models.User.email == user.email).first()
+    existing_user = db.query(tables.User).filter(tables.User.email == user.email).first()
 
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     
     hashed = hash_password(user.password)
 
-    new_user = models.User(email=user.email, password=hashed)
+    new_user = tables.User(email=user.email, password=hashed)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
 
     #generating api key
     key = generate_api_key()
-    api_key = models.APIKey(key=key, user_id=new_user.id)
+    api_key = tables.APIKey(key=key, user_id=new_user.id)
     db.add(api_key)
     db.commit()
 
@@ -46,13 +46,13 @@ def register(user: schemas.UserCreate, db:Session = Depends(get_db)):
 
 @router.post("/login")
 def login(user: schemas.UserLogin, db:Session = Depends(get_db)):
-    db_user = db.query(models.User).filter(models.User.email == user.email).first()
+    db_user = db.query(tables.User).filter(tables.User.email == user.email).first()
 
     if not db_user or not verify_password(user.password, db_user.password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     token = create_token({"user_id" : db_user.id})
-    api_key = db.query(models.APIKey).filter(models.APIKey.user_id == db_user.id).first()
+    api_key = db.query(tables.APIKey).filter(tables.APIKey.user_id == db_user.id).first()
 
     return {
         "access_token": token,
@@ -66,7 +66,7 @@ def regenerate_api_key(
     db: Session = Depends(get_db)
 ):
 
-    api_key = db.query(models.APIKey).filter(models.APIKey.user_id == user_id).first()
+    api_key = db.query(tables.APIKey).filter(tables.APIKey.user_id == user_id).first()
 
     if not api_key:
         raise HTTPException(status_code=404, detail="API key not found")

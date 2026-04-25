@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from app.db import Base, engine
-from app import models
+from app import tables
 from app.routes import auth, api
 
 
