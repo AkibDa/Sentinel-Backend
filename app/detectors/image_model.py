@@ -4,7 +4,7 @@ from io import BytesIO
 from PIL import Image
 
 from tensorflow.keras.models import load_model
-from tensorflow.keras.applications.xception import preprocess_input  # FIX 3: Added missing import
+from tensorflow.keras.applications.xception import preprocess_input 
 
 
 model = load_model("app/models/image_detect/xception_deepfake_base.keras")

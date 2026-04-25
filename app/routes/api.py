@@ -8,7 +8,7 @@ from app import tables
 from typing import Optional
 from app.auth import get_current_user, get_db
 from app.schemas import AnalyseRequest
-from app.detectors.video_detector import predict_video
+from app.detectors.video_model import predict_video
 from app.detectors.image_model import predict_image_from_url, predict_image_from_file
 from app.services.ytdlp_service import download_media_ytdlp
 from app.services.image_scraper import get_raw_image_url
@@ -94,7 +94,7 @@ def analyse_url(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        if os.path.exists(temp_path):
+        if temp_path and os.path.exists(temp_path):
             try:
                 os.remove(temp_path)
             except PermissionError:
