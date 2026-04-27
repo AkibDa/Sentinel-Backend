@@ -3,4 +3,5 @@ __pycache__/
 .env
 .git
 .gitignore
+.txt
 node_modules/

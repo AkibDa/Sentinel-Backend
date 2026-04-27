@@ -14,7 +14,7 @@ def download_media_ytdlp(url: str) -> str:
         'outtmpl': f'{base_name}.%(ext)s',
         'format': 'best', 
         'noplaylist': True,
-        'cookiesfile': 'cookies.txt',
+        'cookiesfile': COOKIES_PATH,
     }
 
     try:
