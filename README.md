@@ -65,8 +65,6 @@ Backend service for a **Deepfake Detection Platform** that allows users to analy
 │   ├── schemas.py
 │   └── utils.py
 │
-├── models/
-│   └── xception_deepfake_base.keras
 │
 ├── venv/
 ├── .env
