@@ -1,3 +1,4 @@
+Here’s your **fully updated, clean, Docker-first README** with the new endpoints + dual authentication included. You can copy-paste this directly to GitHub:
 
 ---
 
@@ -9,13 +10,13 @@ Backend service for a **Deepfake Detection Platform** that allows users to analy
 
 ## 🧠 Features
 
-* 🔐 User Authentication (Register/Login with JWT)
-* 🔑 API Key System (per user)
-* 🔄 API Key Regeneration
-* 📡 Deepfake Detection Endpoint (extensible for ML models)
-* 📜 Scan History Tracking
-* 🗄️ PostgreSQL Database (via Supabase)
-* ⚡ FastAPI for high-performance APIs
+* 🔐 User Authentication (JWT + API Key)
+* 🔑 Per-user API Key system
+* 🔄 API Key regeneration
+* 📡 Deepfake detection (URL & file upload)
+* 📜 Scan history tracking
+* 🗄️ PostgreSQL (Supabase)
+* ⚡ High-performance APIs with FastAPI
 
 ---
 
@@ -24,14 +25,15 @@ Backend service for a **Deepfake Detection Platform** that allows users to analy
 * **Framework:** FastAPI
 * **Database:** PostgreSQL (Supabase)
 * **ORM:** SQLAlchemy
-* **Authentication:** JWT (python-jose)
-* **Password Hashing:** Passlib (bcrypt)
+* **Auth:** JWT (python-jose)
+* **Hashing:** Passlib (bcrypt)
+* **Containerization:** Docker
 
 ---
 
 ## 📁 Project Structure
 
-```
+```id="r8a2lx"
 .
 ├── app/
 │   ├── __pycache__/
@@ -65,72 +67,17 @@ Backend service for a **Deepfake Detection Platform** that allows users to analy
 │   ├── schemas.py
 │   └── utils.py
 │
-│
 ├── venv/
 ├── .env
 ├── .gitignore
 ├── cookies.txt
 ├── LICENSE
-└── README.md                  
+└── README.md
 ```
 
 ---
 
-## ⚙️ Setup Instructions (Manual)
-
-### 1️⃣ Clone the repository
-
-```
-git clone <your-repo-url>
-cd deepfake-backend
-```
-
----
-
-### 2️⃣ Create virtual environment
-
-```
-python -m venv venv
-venv\Scripts\activate   # Windows
-```
-
----
-
-### 3️⃣ Install dependencies
-
-```
-pip install fastapi uvicorn sqlalchemy psycopg2-binary passlib[bcrypt] python-jose python-dotenv email-validator
-```
-
----
-
-### 4️⃣ Configure environment variables
-
-Create a `.env` file:
-
-```
-DATABASE_URL=postgresql://username:password@host:port/database
-```
-
-> ⚠️ Use Supabase Session Pooler if needed.
-
----
-
-### 5️⃣ Run the server
-
-```
-uvicorn app.main:app --reload
-```
-
----
-
-### 6️⃣ Open API Docs
-
-👉 [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-
----
-
-# 🐳 Docker Setup (Recommended for Frontend Team)
+# 🐳 Docker Setup (Recommended)
 
 Run the backend **without installing Python or dependencies**.
 
@@ -138,17 +85,15 @@ Run the backend **without installing Python or dependencies**.
 
 ## ✅ Prerequisites
 
-Install:
-
-* Docker Desktop
+* Install **Docker Desktop**
 
 ---
 
-## 🚀 Steps to Run
+## 🚀 Getting Started
 
 ### 1️⃣ Clone the repository
 
-```
+```bash id="nqoq2n"
 git clone <your-repo-url>
 cd deepfake-backend
 ```
@@ -157,21 +102,24 @@ cd deepfake-backend
 
 ### 2️⃣ Create `.env` file
 
-```
+```env id="hz7n7r"
 DATABASE_URL=postgresql://username:password@host:port/database
+use ipv4 instead of ipv6 in case of supabase
 ```
+
+> ⚠️ Use Supabase Session Pooler if required.
 
 ---
 
-### 3️⃣ Start backend
+### 3️⃣ Run the backend
 
-```
+```bash id="1lh4wu"
 docker compose up --build
 ```
 
 ---
 
-### 4️⃣ Access API
+### 4️⃣ Access the API
 
 * Backend:
   👉 [http://localhost:8080](http://localhost:8080)
@@ -183,7 +131,7 @@ docker compose up --build
 
 ## 🛑 Stop the server
 
-```
+```bash id="1p3b2w"
 docker compose down
 ```
 
@@ -191,41 +139,71 @@ docker compose down
 
 ## 🔄 Rebuild after changes
 
-```
+```bash id="qp0c8c"
 docker compose up --build
 ```
 
 ---
 
-## ⚠️ Notes for Frontend Team
+## ⚠️ Notes
 
-* No need to install Python
-* Make sure port **8080** is free
+* First build may take time (Docker image build)
+* Ensure port **8080** is free
 * `.env` file is required
-* First run may take time (Docker build)
+* No need to install Python locally
 
 ---
 
-## 🔐 Authentication Flow
+## 🔐 Authentication
+
+The API supports **two authentication methods**:
+
+### 1️⃣ JWT Token (Recommended)
+
+Use the token received after login:
+
+```http id="j8ye4h"
+Authorization: Bearer YOUR_JWT_TOKEN
+```
+
+---
+
+### 2️⃣ API Key
+
+Use the API key received during registration/login:
+
+```http id="z7dnqf"
+x-api-key: YOUR_API_KEY
+```
+
+---
+
+### ✅ You can use **either JWT OR API Key** to access protected endpoints.
+
+---
+
+## 🔑 Authentication Flow
 
 ### Register
 
-* Creates user
+* Creates a new user
 * Returns API key
-
-### Login
-
-* Returns JWT token + API key
 
 ---
 
-## 🔑 API Key Usage
+### Login
 
-All protected endpoints require:
+* Returns:
 
-```
-x-api-key: YOUR_API_KEY
-```
+  * JWT token
+  * API key
+
+---
+
+### Regenerate API Key
+
+* Generates a new API key
+* Invalidates the old one
 
 ---
 
@@ -233,38 +211,65 @@ x-api-key: YOUR_API_KEY
 
 ### Auth
 
-* `POST /auth/register`
-* `POST /auth/login`
-* `POST /auth/regenerate-key`
+* `POST /auth/register` → Register user
+* `POST /auth/login` → Login & get JWT + API key
+* `POST /auth/regenerate-key` → Generate new API key
 
 ---
 
 ### Core API
 
-* `POST /detect`
-* `GET /history`
+* `POST /analyse/url` → Analyze media from URL
+* `POST /analyse/analyse_upload` → Analyze uploaded file
+* `GET /history` → Get user scan history
 
 ---
 
-## 🧪 Example Request
+## 🧪 Example Requests
 
+### Using JWT
+
+```http id="3o2wfc"
+POST /analyse/url
+
+Headers:
+  Authorization: Bearer YOUR_JWT_TOKEN
+
+Body:
+{
+  "url": "https://example.com/video.mp4"
+}
 ```
-POST /detect
+
+---
+
+### Using API Key
+
+```http id="49kbpw"
+POST /analyse/url
 
 Headers:
   x-api-key: YOUR_API_KEY
 
 Body:
 {
-  "input_data": "https://example.com/video.mp4"
+  "url": "https://example.com/video.mp4"
 }
 ```
 
 ---
 
+## ⚡ Notes on Usage
+
+* Swagger UI supports authentication via the 🔒 button
+* JWT is recommended for frontend apps
+* API keys are useful for scripts and external integrations
+
+---
+
 ## 🧠 Future Improvements
 
-* 🤖 ML model improvements
+* 🤖 Model improvements
 * ⏱️ Rate limiting (Redis)
 * 🌐 Chrome extension
 * 📊 Dashboard
@@ -274,15 +279,15 @@ Body:
 
 ## 💀 Notes
 
-* bcrypt limit: 72 chars
+* bcrypt limit: 72 characters
 * Use URL-safe DB credentials
-* Use Supabase Session Pooler if needed
+* Prefer Supabase Session Pooler for production
 
 ---
 
 ## 👨‍💻 Author
 
-Built as part of a hackathon project – **Sentinel AI**
+Built as part of a hackathon project — **Sentinel AI**
 
 ---
 
@@ -291,3 +296,8 @@ Built as part of a hackathon project – **Sentinel AI**
 Pull requests are welcome. Open an issue for major changes.
 
 ---
+
+If you want next-level polish, I can:
+
+* add **badges (Docker, FastAPI, stars, etc.)**
+* or make it look like a **top-tier GitHub repo (with screenshots + demo GIF)**
