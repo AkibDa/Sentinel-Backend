@@ -2,124 +2,250 @@ import cv2
 import numpy as np
 import tensorflow as tf
 import os
+import threading
+import logging
+from typing import Optional
 from mtcnn import MTCNN
 
+logger = logging.getLogger(__name__)
+
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-MODEL_PATH = os.path.join(BASE_DIR, "app", "models", "video_detect", "video_model.keras")
+MODEL_PATH = os.environ.get(
+    "VIDEO_MODEL_PATH",
+    os.path.join(BASE_DIR, "app", "models", "video_detect", "video_model.keras"),
+)
 
 print("Loading video model and MTCNN face detector...")
-model = tf.keras.models.load_model(MODEL_PATH)
-detector = MTCNN()
-
-FAKE_CLASS_INDEX = 0
-REAL_CLASS_INDEX = 1
-
-FAKE_THRESHOLD   = 0.5
-MIN_FRAMES_FOR_DECISION = 5
 
 
-def extract_face(frame: np.ndarray):
-    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    results = detector.detect_faces(rgb_frame)
+FAKE_THRESHOLD: float = float(os.environ.get("VIDEO_FAKE_THRESHOLD", "0.50"))
 
-    if not results:
+MIN_FRAMES_FOR_DECISION: int = int(os.environ.get("VIDEO_MIN_FRAMES", "5"))
+
+INFERENCE_BATCH_SIZE: int = int(os.environ.get("VIDEO_INFERENCE_BATCH","32"))
+
+FACE_MARGIN: float = 0.20
+
+IMG_SIZE: tuple[int, int] = (229,229)
+
+_lock = threading.Lock()
+_model: Optional[tf.keras.Model] = None
+_detector: Optional[MTCNN] = None
+
+def _load_resources() -> tuple[tf.keras.Model, MTCNN]:
+    "loading and caching the keras model"
+    global _model, _detector
+    if _model is None or _detector is None:
+        with _lock:
+            if _model is None:
+                logger.info("Loading Keras model from %s ...", MODEL_PATH)
+                _model = tf.keras.models.load_model(
+                    MODEL_PATH, 
+                    custom_objects={
+                        "FFTBranch": _FFTBranchStub, 
+                        "BinaryFocalLoss": _BinaryFocalLossStub, 
+                    },
+                    compile=False,
+                )
+                logger.info("Model loaded.")
+            if _detector is None:
+                logger.info("Initialising MTCNN detector...")
+                _detector = MTCNN()
+                logger.info("MTCNN ready.")
+
+    return _model, _detector
+
+class _FFTBranchStub(tf.keras.layers.Layer):
+    """Stub for FFTBranch — only get_config is needed for deserialization."""
+    def __init__(self, fft_size: int = 75, **kwargs):
+        super().__init__(**kwargs)
+        self.fft_size = fft_size
+        self.conv1 = tf.keras.layers.Conv2D(32, 5, strides=2, activation="relu", padding="same")
+        self.bn1   = tf.keras.layers.BatchNormalization()
+        self.conv2 = tf.keras.layers.Conv2D(64, 3, strides=2, activation="relu", padding="same")
+        self.bn2   = tf.keras.layers.BatchNormalization()
+        self.conv3 = tf.keras.layers.Conv2D(128, 3, strides=2, activation="relu", padding="same")
+        self.gap   = tf.keras.layers.GlobalAveragePooling2D()
+        self.dense = tf.keras.layers.Dense(256, activation="relu")
+ 
+    def call(self, x, training=False):
+        x_small = tf.image.resize(x, [self.fft_size, self.fft_size])
+        gray    = tf.image.rgb_to_grayscale(x_small)
+        gray    = tf.squeeze(gray, axis=-1)
+        gray_c  = tf.cast(gray, tf.complex64)
+        fft     = tf.signal.fft2d(gray_c)
+        shifted = tf.signal.fftshift(fft)
+        mag     = tf.math.log1p(tf.abs(shifted))
+        mag     = tf.expand_dims(mag, axis=-1)
+        mn      = tf.reduce_min(mag,  axis=[1, 2, 3], keepdims=True)
+        mx      = tf.reduce_max(mag,  axis=[1, 2, 3], keepdims=True)
+        mag     = (mag - mn) / (mx - mn + 1e-8)
+        x = self.conv1(mag, training=training)
+        x = self.bn1(x,     training=training)
+        x = self.conv2(x,   training=training)
+        x = self.bn2(x,     training=training)
+        x = self.conv3(x,   training=training)
+        x = self.gap(x)
+        return self.dense(x)
+ 
+    def get_config(self):
+        return {**super().get_config(), "fft_size": self.fft_size}
+ 
+ 
+class _BinaryFocalLossStub(tf.keras.losses.Loss):
+    """Stub for BinaryFocalLoss — only needed so load_model doesn't crash."""
+    def __init__(self, gamma: float = 2.0, alpha: float = 0.75, **kwargs):
+        super().__init__(**kwargs)
+        self.gamma = gamma
+        self.alpha = alpha
+ 
+    def call(self, y_true, y_pred):
+        y_true  = tf.cast(tf.reshape(y_true, [-1]), tf.float32)
+        y_pred  = tf.cast(tf.reshape(y_pred, [-1]), tf.float32)
+        y_pred  = tf.clip_by_value(y_pred, 1e-7, 1.0 - 1e-7)
+        p_t     = tf.where(y_true == 1, y_pred, 1.0 - y_pred)
+        alpha_t = tf.where(y_true == 0,
+                           tf.ones_like(y_true) * self.alpha,
+                           tf.ones_like(y_true) * (1.0 - self.alpha))
+        return tf.reduce_mean(-alpha_t * tf.pow(1.0 - p_t, self.gamma) * tf.math.log(p_t))
+ 
+    def get_config(self):
+        return {**super().get_config(), "gamma": self.gamma, "alpha": self.alpha}
+
+
+
+def _extract_face(frame: np.ndarray, detector: MTCNN) -> Optional[np.ndarray]:
+
+    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    detections = detector.detect_faces(rgb)
+
+    if not detections:
         return None
+    
+    best = max(
+        (d for d in detections if d.get("confidence", 0) >= 0.90),
+        key=lambda d: d["box"][2] * d["box"][3],
+        default=None,
+    )
 
-    largest_face = None
-    max_area = 0
-    for result in results:
-        x, y, w, h = result['box']
-        x, y = max(0, x), max(0, y)
-        area = w * h
-        if area > max_area:
-            max_area = area
-            largest_face = (x, y, w, h)
-
-    if largest_face is None:
+    if best is None:
         return None
+    
+    x, y, w, h = best["box"]
+    x, y = max(0, x), max(0, y)
 
-    x, y, w, h = largest_face
-    ih, iw, _ = frame.shape
-    w = min(iw - x, w)
-    h = min(ih - y, h)
+    margin_x = int(w * FACE_MARGIN)
+    margin_y = int(h * FACE_MARGIN)
+    ih, iw = frame.shape[:2]
 
-    face = frame[y:y + h, x:x + w]
+    x1 = max(0, x - margin_x)
+    y1 = max(0, y - margin_y)
+    x2 = min(iw, x + w + margin_x)
+    y2 = min(ih, y + h + margin_y)
+
+    face = rgb[y1: y2, x1: x2]
 
     if face.shape[0] < 50 or face.shape[1] < 50:
         return None
-
+    
     return face
 
+def _preprocess_face(face_rgb: np.ndarray) -> np.ndarray:
 
-def jpeg_roundtrip(face_bgr: np.ndarray, quality: int = 95) -> np.ndarray:
-    
-    encode_params = [cv2.IMWRITE_JPEG_QUALITY, quality]
-    _, buffer = cv2.imencode(".jpg", face_bgr, encode_params)
-    decoded = cv2.imdecode(buffer, cv2.IMREAD_COLOR)     # BGR uint8
-    rgb = cv2.cvtColor(decoded, cv2.COLOR_BGR2RGB)        # RGB uint8
-    return rgb.astype(np.float32)                         # float32, still [0,255]
+    resized = cv2.resize(face_rgb, IMG_SIZE, interpolation=cv2.INTER_LINEAR)
+    arr = resized.astype(np.float32)
+
+    arr = tf.keras.applications.xception.preprocess_input(arr)
+    return arr
+
+
+def _run_inference(faces: list[np.ndarray], model: tf.keras.Model) -> np.ndarray:
+
+    all_preds: list[np.ndarray] = []
+    for start in range(0, len(faces), INFERENCE_BATCH_SIZE):
+        chunk = np.array(faces[start: start + INFERENCE_BATCH_SIZE], dtype=np.float32)
+        preds = model.predict(chunk, verbose=0)
+        all_preds.append(preds.flatten())
+    return np.concatenate(all_preds)
+
+
+def _confidence_band(fake_prob: float, threshold: float) -> str:
+
+    distance = abs(fake_prob - threshold)
+    if distance >= 0.25:
+        return "HIGH"
+    if distance >= 0.10:
+        return "MEDIUM"
+    return "LOW"
+
 
 
 def predict_video(video_path: str) -> dict:
+
+    model, detector = _load_resources()
+
     
     cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        return {"error": f"Could not open video: {video_path}"}
 
-    fps = int(cap.get(cv2.CAP_PROP_FPS))
-    if fps == 0:
-        fps = 30
+    fps = int(cap.get(cv2.CAP_PROP_FPS)) or 30
 
-    frame_interval = max(1, fps)
+    frame_interval = max(1, fps // 2)
 
+    faces_batch: list[np.ndarray] = []
     frame_count  = 0
-    faces_batch  = []
 
-    success, frame = cap.read()
-    while success:
+    ok, frame = cap.read()
+    while ok:
         if frame_count % frame_interval == 0:
-            face_bgr = extract_face(frame)
-            if face_bgr is not None:
-                face_resized = cv2.resize(face_bgr, (224, 224))
-
-                face_float = jpeg_roundtrip(face_resized, quality=95)
-                faces_batch.append(face_float)
-
-        success, frame = cap.read()
+            face_rgb = _extract_face(frame, detector)
+            if face_rgb is not None:
+                faces_batch.append(_preprocess_face(face_rgb))
+        ok, frame = cap.read()
         frame_count += 1
 
     cap.release()
 
-    if len(faces_batch) == 0:
+    if not faces_batch:
         return {
-            "error": "No faces could be detected in this video. "
-                     "Ensure it contains clear, frontal faces."
+            "error": (
+                "No faces could be detected in this video. "
+                "Ensure it contains clear, frontal faces with confidence ≥ 0.90."
+            )
         }
+    
+    real_probs = _run_inference(faces_batch, model)
+    fake_probs = 1.0 - real_probs
 
-   
-    batch_array = np.array(faces_batch)            # (N, 224, 224, 3)  RGB float32
-    preds       = model.predict(batch_array, verbose=0)  # (N, 2)
-
-    fake_probabilities = preds[:, FAKE_CLASS_INDEX]
-    average_fake_prob  = float(np.mean(fake_probabilities))
-
-    is_fake        = average_fake_prob > FAKE_THRESHOLD
+    avg_fake_prob = float(np.mean(fake_probs))
+    avg_real_prob = float(np.mean(real_probs))
     frames_analysed = len(faces_batch)
 
-    if is_fake:
-        label      = "fake"
-        confidence = round(average_fake_prob * 100, 2)
-    else:
-        label      = "real"
-        confidence = round((1.0 - average_fake_prob) * 100, 2)
 
-    return {
+    per_frame_fake = (fake_probs >= FAKE_THRESHOLD)
+    fake_frame_ratio = float(np.mean(per_frame_fake)) * 100.0
+
+    is_fake = avg_fake_prob >= FAKE_THRESHOLD
+
+    if is_fake:
+        label = "fake"
+        confidence = round(avg_fake_prob * 100,2)
+    else:
+        label = "real"
+        confidence = round(avg_real_prob * 100, 2)
+
+    return{
         "prediction":       label,
         "confidence":       confidence,
+        "confidence_band":  _confidence_band(avg_fake_prob, FAKE_THRESHOLD),
         "low_confidence":   frames_analysed < MIN_FRAMES_FOR_DECISION,
-        "raw_score":        round(average_fake_prob, 4),
-        "fake_probability": round(average_fake_prob * 100, 2),
-        "real_probability": round((1.0 - average_fake_prob) * 100, 2),
+        "raw_score":        round(avg_real_prob, 4),      # P(real) -same semantics as training
+        "fake_probability": round(avg_fake_prob * 100, 2),
+        "real_probability": round(avg_real_prob * 100, 2),
         "frames_analysed":  frames_analysed,
-        "fake_frame_ratio": round(
-            float(np.mean(preds[:, FAKE_CLASS_INDEX] > FAKE_THRESHOLD)) * 100, 2
-        ),
+        "fake_frame_ratio": round(fake_frame_ratio, 2),
+        "threshold_used":   FAKE_THRESHOLD,
+        "error":            None,
     }
