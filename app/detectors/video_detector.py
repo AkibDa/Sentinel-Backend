@@ -68,7 +68,6 @@ def predict_video(video_path: str) -> dict:
     if fps == 0:
         fps = 30
 
-    # Match training: 1 frame per second (notebook uses frame_interval = fps)
     frame_interval = max(1, fps)
 
     frame_count  = 0
