@@ -32,7 +32,6 @@ Backend service for a **Deepfake Detection Platform** that allows users to analy
 ```id="r8a2lx"
 .
 ├── app/
-│   ├── __pycache__/
 │   │
 │   ├── detectors/
 │   │   ├── image_model.py
@@ -101,6 +100,8 @@ cd deepfake-backend
 ```env id="hz7n7r"
 DATABASE_URL=postgresql://username:password@host:port/database
 use ipv4 instead of ipv6 in case of supabase
+GEMINI_API_KEY=your_gemini_api_key
+SECRET_KEY=your_secret_key_for_jwt
 ```
 
 > ⚠️ Use Supabase Session Pooler if required.
@@ -218,7 +219,7 @@ x-api-key: YOUR_API_KEY
 * `POST /analyse/url` → Analyze media from URL
 * `POST /analyse/analyse_upload` → Analyze uploaded file
 * `GET /history` → Get user scan history
-
+* `POST /factcheck` → Fact-check a claim using Gemini API'
 ---
 
 ## 🧪 Example Requests
