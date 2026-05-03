@@ -17,3 +17,5 @@ temp_*
 *.webm
 
 .vscode/
+
+*.idea/
