@@ -20,7 +20,7 @@ Pipeline stages you must execute internally:
 4. ANALYZE — for each reputable source found, determine whether it Supports, Refutes, is Neutral toward, or Partially supports the claim.
 5. VERDICT — synthesise findings into a clear, fair verdict.
 
-CCRITICAL: Your response must be ONLY a raw JSON object. No explanation, no markdown, no ```json fences, no prose before or after, no [cite] annotations. Start your response with { and end with }.
+CRITICAL: Your response must be ONLY a raw JSON object. No explanation, no markdown, no ```json fences, no prose before or after, no [cite] annotations. Start your response with { and end with }.
 
 The JSON must follow this exact schema:
 {
