@@ -9,14 +9,12 @@ from app.utils import generate_api_key
 
 router = APIRouter()
 
-
 def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
-
 
 @router.post("/register")
 def register(user: schemas.UserCreate, db:Session = Depends(get_db)):
@@ -38,7 +36,6 @@ def register(user: schemas.UserCreate, db:Session = Depends(get_db)):
     db.add(api_key)
     db.commit()
 
-
     return{
         "message": "User created",
         "api_key": key
@@ -58,7 +55,6 @@ def login(user: schemas.UserLogin, db:Session = Depends(get_db)):
         "access_token": token,
         "api_key" : api_key
     }
-
 
 @router.post("/regenerate-key")
 def regenerate_api_key(

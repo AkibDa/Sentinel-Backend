@@ -4,7 +4,6 @@ import shutil
 import tempfile
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
-from app.db import SessionLocal
 from app import tables
 from typing import Optional
 from app.auth import get_current_user, get_db
@@ -15,7 +14,6 @@ from app.services.ytdlp_service import download_media_ytdlp
 from app.services.image_scraper import get_raw_image_url
 
 router = APIRouter()
-
 
 def finalize_scan_response(
     db: Session,
@@ -65,7 +63,6 @@ def finalize_scan_response(
         response["original_url"] = input_data
 
     return response
-
 
 @router.post("/analyse/url")
 def analyse_url(

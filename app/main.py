@@ -2,7 +2,6 @@ from fastapi import FastAPI
 from app.routes import auth, api, news
 from app.db import Base, engine
 
-
 app = FastAPI(title="Sentinel AI", version="1.0.2")
 
 Base.metadata.create_all(bind=engine)
