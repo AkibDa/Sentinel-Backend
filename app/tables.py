@@ -10,7 +10,6 @@ class User(Base):
     password=Column(String, nullable=False)
     created_at=Column(DateTime(timezone=True), server_default=func.now())
 
-
 class APIKey(Base):
     __tablename__ = "api_keys"
 
@@ -18,7 +17,6 @@ class APIKey(Base):
     key = Column(String, unique=True, index=True, nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-
 
 class Scan(Base):
     __tablename__ = "scans"
@@ -30,4 +28,3 @@ class Scan(Base):
     result = Column(String)
     confidence = Column(String)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    

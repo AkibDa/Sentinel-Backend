@@ -6,9 +6,7 @@ from PIL import Image
 from tensorflow.keras.models import load_model
 from tensorflow.keras.applications.xception import preprocess_input 
 
-
 model = load_model("app/models/image_detect/xception_deepfake_base.keras")
-
 
 def predict_image_from_url(url: str):
     try:
@@ -55,7 +53,6 @@ def predict_image_from_url(url: str):
 
     except Exception as e:
         return {"error": str(e)}
-
 
 def predict_image_from_file(file_path: str):
     try:

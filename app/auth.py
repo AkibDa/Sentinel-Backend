@@ -15,8 +15,6 @@ ACCESS_TOKEN_EXPIRE_HOURS = 24
 jwt_scheme = HTTPBearer(auto_error=False)
 api_key_scheme = APIKeyHeader(name="x-api-key", auto_error=False)
 
-
-
 def get_db():
     db = SessionLocal()
     try:
@@ -24,14 +22,11 @@ def get_db():
     finally:
         db.close()
 
-
-
 def create_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
 
 # --- JWT verification ---
 
@@ -44,7 +39,6 @@ def verify_jwt_and_get_user_id(token: str) -> int:
         return user_id
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
-
 
 # --- Unified auth dependency (JWT or API key) ---
 
